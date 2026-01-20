@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FarmPlotter - Map Your Farm</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description"
+        content="FarmPlotter: A mobile-first tool for farmers to map their plots by walking the perimeter. Real-time GPS tracking, area calculation, and GeoJSON export for EUDR/FSC compliance.">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Top Overlay: Area Display -->
+    <div id="area-overlay" class="area-overlay">
+        <div class="area-card">
+            <div class="area-label">Current Area</div>
+            <div id="area-value" class="area-value">0.00 ha</div>
+            <div id="point-count" class="point-count">0 points</div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Bottom Control Dashboard -->
+    <div class="control-dashboard">
+        <div class="controls-container">
+            <!-- Upload Button -->
+            <button id="upload-btn" class="control-btn upload-btn" title="Upload GeoJSON">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+            </button>
+
+            <!-- Pause/Resume Button (Side) -->
+            <button id="pause-resume-btn" class="control-btn pause-resume-btn" style="display: none;"
+                title="Pause Recording">
+                <svg id="pause-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+                <svg id="resume-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"
+                    style="display: none;">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+            </button>
+
+            <!-- Main Start/Finish Button (Center) -->
+            <button id="main-action-btn" class="control-btn main-btn" title="Start Recording">
+                <svg id="start-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <svg id="finish-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" style="display: none;">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+            </button>
+        </div>
+
+        <div id="status-text" class="status-text">Tap play to start recording</div>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="file-input" accept=".geojson,.json" style="display: none;">
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="error-title">Error</h2>
+            <p id="error-message"></p>
+            <button id="error-close" class="modal-btn">OK</button>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/tracker.js') }}"></script>
+</body>
+
+</html>
