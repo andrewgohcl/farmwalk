@@ -47,7 +47,44 @@ const errorTitle = document.getElementById('error-title');
 const errorMessage = document.getElementById('error-message');
 const errorClose = document.getElementById('error-close');
 
-// ... [Keep utility functions same] ...
+// ===== Utility Functions =====
+function toRad(value) {
+    return value * Math.PI / 180;
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // Earth radius in meters
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function estimateArea() {
+    if (coordinates.length < 3) return 0;
+
+    // Shoelace formula approximation (works well for small areas on flat-ish projection)
+    // For more accuracy, backend uses geodesic area
+    let area = 0;
+    const j = coordinates.length - 1;
+
+    for (let i = 0; i < coordinates.length; i++) {
+        const next = (i + 1) % coordinates.length;
+        // Convert lat/lon to approximately meters (Mercator-ish for rough estimate)
+        // This is just for UI feedback; backend is source of truth
+        const x1 = coordinates[i][1] * 111319.9 * Math.cos(toRad(coordinates[i][0]));
+        const y1 = coordinates[i][0] * 111319.9;
+        const x2 = coordinates[next][1] * 111319.9 * Math.cos(toRad(coordinates[next][0]));
+        const y2 = coordinates[next][0] * 111319.9;
+
+        area += (x1 * y2) - (x2 * y1);
+    }
+
+    return Math.abs(area) / 20000; // Convert sq meters to hectares
+}
 
 function updateUI() {
     // Update point count and area
@@ -115,7 +152,30 @@ function updateUI() {
     }
 }
 
-// ... [Keep error helpers and wake lock same] ...
+// ===== Error & System Helpers =====
+function showError(title, message) {
+    errorTitle.textContent = title;
+    errorMessage.textContent = message;
+    errorModal.style.display = 'block';
+}
+
+function hideError() {
+    errorModal.style.display = 'none';
+}
+
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake Lock released');
+            });
+            console.log('Wake Lock active');
+        }
+    } catch (err) {
+        console.warn(`${err.name}, ${err.message}`);
+    }
+}
 
 // ===== State Transitions =====
 function resetToIdle() {
@@ -136,6 +196,92 @@ function resetToIdle() {
     }
 
     updateUI();
+}
+
+
+// ===== Tracking Functions =====
+function startTracking() {
+    if (navigator.geolocation) {
+        requestWakeLock();
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        };
+
+        watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+
+                // Basic jitter filter: ignore points with poor accuracy (>20m)
+                // unless it's the first point
+                if (accuracy > 20 && coordinates.length > 0) {
+                    return;
+                }
+
+                const newPoint = [lat, lng];
+
+                // Distance filter: only add if moved > 2 meters
+                if (lastSavedPosition) {
+                    const dist = calculateDistance(
+                        lastSavedPosition[0], lastSavedPosition[1],
+                        lat, lng
+                    );
+                    if (dist < 2) return;
+                }
+
+                coordinates.push(newPoint);
+                lastSavedPosition = newPoint;
+
+                // Update Map
+                if (!userMarker) {
+                    userMarker = L.marker(newPoint).addTo(map);
+                } else {
+                    userMarker.setLatLng(newPoint);
+                }
+
+                if (!trackingPolyline) {
+                    trackingPolyline = L.polyline(coordinates, { color: 'blue' }).addTo(map);
+                } else {
+                    trackingPolyline.setLatLngs(coordinates);
+                }
+
+                // Center map on user
+                if (coordinates.length === 1) {
+                    map.setView(newPoint, 18);
+                } else {
+                    map.setView(newPoint);
+                }
+
+                updateUI();
+            },
+            (err) => {
+                console.warn('Geolocation error:', err.message);
+                if (err.code === 1) { // PERMISSION_DENIED
+                    showError('Permission Denied', 'Please enable GPS access to record your walk.');
+                    resetToIdle();
+                }
+            },
+            options
+        );
+    } else {
+        showError('Not Supported', 'Geolocation is not supported by your browser.');
+    }
+}
+
+function stopTracking() {
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+    if (wakeLock !== null) {
+        wakeLock.release().then(() => {
+            wakeLock = null;
+        });
+    }
 }
 
 // ===== Event Handlers =====
